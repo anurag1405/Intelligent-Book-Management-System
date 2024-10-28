@@ -1,80 +1,88 @@
-import joblib
-import pandas as pd
-import asyncpg
+import faiss
+import pickle
 from database import get_db_connection
 from fastapi import HTTPException
+import numpy as np
+import mlflow.pyfunc
+import pandas as pd
 
-kmeans = joblib.load('Recommendation.pkl')
-scaler = joblib.load('scaler.pkl')
-label_encoder = joblib.load('label_encoder.pkl')
 
-async def books_recommended(title):
-    print(title)
-    conn = await get_db_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="Database connection failed")
+model_name = "Best_SVD_Model"
+model_uri = f"models:/{model_name}/latest"
+model = mlflow.pyfunc.load_model(model_uri=model_uri)
 
+
+with open('artifacts/vectorizer.pkl','rb') as f:
+    vectorizer = pickle.load(f)
+
+k = 11
+async def load_faiss():
+    index = index = faiss.read_index("artifacts/faiss_books_index.index")
+    return index
+
+async def content_based(title, k=20):
+    conn = await get_db_connection()  
     try:
-        # Fetch the genre and average rating of the book
-        result = await conn.fetchrow(
-            """
-            SELECT b.genre, round(AVG(r.rating),1) as avg_rating
-            FROM books b
-            JOIN reviews r ON b.id = r.book_id
-            WHERE b.title = $1
-            GROUP BY b.id, b.genre
-            """,
-            title
-        )
-
-        if result is None:
-            return {"message": "No current recommendations matching"}
-
-        genre, avg_rating = result['genre'], result['avg_rating']
-
-        # Encode the genre and scale the input
-        genre_encoded = label_encoder.transform([genre])[0]
-        X_input = scaler.transform([[genre_encoded, avg_rating]])
-
-        # Predict the cluster for the input book
-        cluster = kmeans.predict(X_input)[0]
-
-        # Fetch all books and their ratings
-        rows = await conn.fetch(
-            """
-            SELECT b.id, b.title, b.author, b.genre, AVG(r.rating) AS rating
-            FROM books b
-            JOIN reviews r ON b.id = r.book_id
-            GROUP BY b.id, b.title, b.author, b.genre
-            """
-        )
-
-        if not rows:
-            return {"message": "No books found in the database"}
-
-        # Convert rows into a pandas DataFrame
-        books_list = [dict(row) for row in rows]  # Convert each row (Record) to a dictionary
-        books_df = pd.DataFrame(books_list, columns=['id', 'title', 'author', 'genre', 'rating'])
-
-        # Encode the genre column
-        books_df['genre_encoded'] = label_encoder.transform(books_df['genre'])
-
-        # Scale the features
-        features = scaler.transform(books_df[['genre_encoded', 'rating']])
-
-        # Predict clusters for all books
-        books_df['cluster'] = kmeans.predict(features)
-
-        # Filter books in the same cluster and exclude the current book
-        recommendations = books_df[(books_df['cluster'] == cluster) & (books_df['title'] != title)][['title', 'author']]
-
-        if recommendations.empty:
-            return {"message": "No current recommendations matching"}
-
-        # Return recommendations as a dictionary
-        return recommendations.to_dict(orient='records')
-
-    except asyncpg.PostgresError as db_error:
-        raise HTTPException(status_code=500, detail=f"Database query error: {db_error}")
+        index = await load_faiss()
+        book_record = await conn.fetchrow("SELECT id, faiss_index FROM books WHERE title = $1", title)
+        if not book_record:
+            return f"No book found with the title '{title}'"
+    
+        book_id = book_record['id']
+        faiss_index = book_record['faiss_index']
+        book_vector = index.reconstruct(faiss_index).reshape(1, -1)
+        distances, indices = index.search(book_vector, k)
+        recommended_book_ids = await conn.fetch("SELECT id FROM books WHERE faiss_index = ANY($1::int[])", indices[0])
+        recommended_book_ids = [record['id'] for record in recommended_book_ids]
+        if book_id in recommended_book_ids:
+            recommended_book_ids.remove(book_id)
+        
+        return recommended_book_ids
+    
     finally:
         await conn.close()
+
+async def hybrid_recommendations(username, title):
+    k = 10
+    book_ids = await content_based(title)
+    predicted_ratings = []
+    conn = await get_db_connection()
+    
+    try:
+        record = await conn.fetchrow("SELECT id FROM users WHERE username = $1", username)  
+        if not record:
+            raise HTTPException(status_code=404, detail="User not found")
+        user_encoded = record['id'] 
+        for id in book_ids:
+            input_data = pd.DataFrame({
+                "user_id": pd.Series(user_encoded, dtype='int32'),  # Explicitly set dtype to int32
+                "item_id": pd.Series(id, dtype='int32')   # Explicitly set dtype to int32
+            })
+            prediction = model.predict(input_data)
+            predicted_ratings.append((id, prediction))
+        collaborative_book_ids = [book_id for book_id, _ in sorted(predicted_ratings, key=lambda x: -x[1])[:k]]
+        if collaborative_book_ids:
+            books = await conn.fetch(
+                "SELECT id, title, summary FROM books WHERE id = ANY($1::int[])",
+                collaborative_book_ids
+            )
+            return books
+        return []  # Return an empty list if no books are found
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    finally:
+        await conn.close()
+
+
+async def add_newbook_to_faiss(new_book):
+    index = await load_faiss()
+    metadata = new_book.title + " " + new_book.author + " " + new_book.genre + " " + new_book.summary
+    tfidf_vectors = vectorizer.transform([metadata])  # Wrap metadata in a list to ensure it's treated as a single sample
+    dense_vectors = tfidf_vectors.toarray().astype(np.float32)
+    current_faiss_size = index.ntotal
+    index.add(dense_vectors)
+    faiss.write_index(index, "faiss_books_index.index")
+    new_faiss_index = current_faiss_size  # This is the FAISS index of the newly added vector
+    return new_faiss_index

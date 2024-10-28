@@ -7,7 +7,6 @@ from database import get_db_connection
 import jwt
 from fastapi.responses import JSONResponse
 
-
 router = APIRouter()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -18,22 +17,59 @@ def get_password_hash(password):
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+
+# Check if username exists
+async def check_username(username):
+    conn = await get_db_connection()  
+    try:
+        result = await conn.fetchrow("SELECT username FROM users WHERE username = $1", username)
+        if result:
+            # If the username exists, raise an exception with a clear message
+            raise HTTPException(status_code=400, detail="Username already exists")
+        return {"message": "Username is available"}
+    except Exception as e:
+        print(f"Error checking username: {e}")  # Log the error for debugging
+        raise e
+    finally:
+        await conn.close()
+
+# Check if email exists
+async def check_email(email):
+    conn = await get_db_connection()  
+    try:
+        result = await conn.fetchrow("SELECT email FROM users WHERE email = $1", email)
+        if result:
+            raise HTTPException(status_code=400, detail="Email already exists")
+        return {"message": "Email is available"}
+    except Exception as e:
+        raise e
+    finally:
+        await conn.close()
+
 # Register Route
 @router.post("/register")
 async def register(user: UserCreate):
-        conn = await get_db_connection()
+    conn = await get_db_connection()
+    try:
+        # Check if username exists
+        await check_username(user.username)
+        # Check if email exists
+        await check_email(user.email)
+        # Hash the password
         hashed_password = get_password_hash(user.password)
-        try:
-            await conn.execute(
-                "INSERT INTO users (username, email, hashed_password) VALUES ($1, $2, $3)",
-                user.username, user.email, hashed_password
-            )
-            return {"msg": "User registered successfully"}
-        except Exception as e:
-            raise HTTPException(status_code=400, detail="Error in registration")
-        finally:
-             await conn.close()
+        
+        await conn.execute(
+            "INSERT INTO users (username, email, hashed_password) VALUES ($1, $2, $3)",
+            user.username, user.email, hashed_password
+        )
+        return {"msg": "User registered successfully"}
 
+    except HTTPException as e:
+        raise e  
+    except Exception as e:
+        raise e
+    finally:
+        await conn.close()
 
 # Login Route
 @router.post("/login")

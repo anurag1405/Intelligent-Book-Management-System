@@ -6,3 +6,10 @@ joblib
 pandas
 pydantic
 python-dotenv
+passlib
+pyjwt
+scikit-learn
+groq
+bcrypt==3.2.0
+scikit-surprise
+faiss-cpu

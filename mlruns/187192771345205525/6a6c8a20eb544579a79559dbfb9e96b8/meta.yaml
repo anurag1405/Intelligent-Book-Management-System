@@ -1,0 +1,15 @@
+artifact_uri: /home/kapiushon05/airflow/dags/Book/mlruns/187192771345205525/6a6c8a20eb544579a79559dbfb9e96b8/artifacts
+end_time: 1730093779908
+entry_point_name: ''
+experiment_id: '187192771345205525'
+lifecycle_stage: active
+run_id: 6a6c8a20eb544579a79559dbfb9e96b8
+run_name: placid-cod-48
+run_uuid: 6a6c8a20eb544579a79559dbfb9e96b8
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1730093707729
+status: 3
+tags: []
+user_id: kapiushon05

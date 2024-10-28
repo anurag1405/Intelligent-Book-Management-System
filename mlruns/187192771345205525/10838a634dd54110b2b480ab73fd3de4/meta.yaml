@@ -1,0 +1,15 @@
+artifact_uri: /home/kapiushon05/airflow/dags/Book/mlruns/187192771345205525/10838a634dd54110b2b480ab73fd3de4/artifacts
+end_time: 1730092456821
+entry_point_name: ''
+experiment_id: '187192771345205525'
+lifecycle_stage: active
+run_id: 10838a634dd54110b2b480ab73fd3de4
+run_name: able-skink-163
+run_uuid: 10838a634dd54110b2b480ab73fd3de4
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1730092393677
+status: 3
+tags: []
+user_id: kapiushon05

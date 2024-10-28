@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from models.review import Review
+from utils.jwt_handler import get_current_user
 from database import get_db_connection
 router = APIRouter()
 
 @router.post("/books/{id}/reviews")
-async def create_review(id: int, new_review: Review):
+async def create_review(id: int, new_review: Review,current_user: dict=Depends(get_current_user)):
     conn = await get_db_connection()
     if not conn:
         raise HTTPException(status_code=500, detail="Database connection failed")
@@ -16,7 +17,7 @@ async def create_review(id: int, new_review: Review):
         
         await conn.execute(
             'INSERT INTO reviews (book_id, user_id, review_text, rating) VALUES ($1, $2, $3, $4)',
-            id, new_review.user_id, new_review.review_text, new_review.rating
+            id, current_user['username'], new_review.review_text, new_review.rating
         )
         return {"message": "Review added"}
     finally:
@@ -24,7 +25,7 @@ async def create_review(id: int, new_review: Review):
     
 
 @router.get("/books/{id}/reviews")
-async def get_reviews(id: int):
+async def get_reviews(id: int,current_user: dict=Depends(get_current_user)):
     conn = await get_db_connection()
     if not conn:
         raise HTTPException(status_code=500, detail="Database connection failed")

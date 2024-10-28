@@ -1,0 +1,6 @@
+artifact_location: /home/kapiushon05/airflow/dags/Book/mlruns/187192771345205525
+creation_time: 1730091723390
+experiment_id: '187192771345205525'
+last_update_time: 1730091723390
+lifecycle_stage: active
+name: books

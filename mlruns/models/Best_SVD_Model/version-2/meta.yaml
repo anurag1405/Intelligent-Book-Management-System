@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1730093851021
+current_stage: Production
+description: 'RMSE: 0.9899907211210678'
+last_updated_timestamp: 1730093851035
+name: Best_SVD_Model
+run_id: 6a6c8a20eb544579a79559dbfb9e96b8
+run_link: null
+source: runs:/6a6c8a20eb544579a79559dbfb9e96b8/model
+status: READY
+status_message: null
+storage_location: runs:/6a6c8a20eb544579a79559dbfb9e96b8/model
+user_id: null
+version: 2

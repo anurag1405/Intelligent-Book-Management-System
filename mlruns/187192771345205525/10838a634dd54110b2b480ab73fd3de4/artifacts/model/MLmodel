@@ -1,0 +1,22 @@
+artifact_path: model
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.0
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.10.12
+    streamable: false
+mlflow_version: 2.17.1
+model_size_bytes: 548580
+model_uuid: 1ff519b90ca1422cbebed51447644d87
+run_id: 10838a634dd54110b2b480ab73fd3de4
+signature:
+  inputs: '[{"type": "integer", "name": "user_id", "required": true}, {"type": "integer",
+    "name": "item_id", "required": true}]'
+  outputs: '[{"type": "float", "name": "prediction", "required": true}]'
+  params: null
+utc_time_created: '2024-10-28 05:13:13.743594'
